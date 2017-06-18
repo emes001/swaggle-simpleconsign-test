@@ -1,0 +1,63 @@
+#!/usr/bin/env node
+const request = require('request');
+const _ = require('underscore');
+const fs = require('fs');
+
+const apiUrl = 'http://user.traxia.com/app/api/inventory';
+
+const printSample = process.argv[2] == "print-sample";
+const saveSample = process.argv[2] == "save-sample"
+const numSampleRecords = process.argv[3] || 5;
+
+var requestOptions = {
+	method: "POST",
+	uri: apiUrl,
+	body: {
+		"key": process.env.SIMPLECONSIGN_API_KEY,
+		"includeItemsWithQuantityZero": false
+	},
+	json: true
+}
+
+console.log("Sending request to SimpleConsign...");
+request(requestOptions, function(error, response, body) {
+	console.log("Response received from SimpleConsign...");
+
+	if (error) {
+		console.log("ERROR", error);
+		return;
+	}
+
+	var results = body.results;
+
+	if (results) {
+		console.log("# Total results:", results.length);
+
+		var resultsThatAreActive = _.filter(results, function(x) { return x.status == 'ACTIVE'; });
+		console.log("# Active results:", resultsThatAreActive.length);
+
+		var resultsThatHaveImages = _.filter(resultsThatAreActive, function(x) { return x.images.length > 0; });
+		console.log("# Results with images:", resultsThatHaveImages.length);
+
+		if (printSample || saveSample) {
+			var output = [];
+			_.each(results, function(result, index) {
+				if (index < numSampleRecords || numSampleRecords == -1) {
+					output.push(result);
+				}
+			});
+
+			if (printSample) {
+				console.log(output);
+			}
+
+			if (saveSample) {
+				var outputAsJson = JSON.stringify(output, null, 4); // pretty-print using 4 spaces
+				fs.writeFile('output.json', outputAsJson, (err) => {
+					if (err) throw err;
+					console.log("Data written to output.json");
+				});
+			}
+		}
+	}
+});
